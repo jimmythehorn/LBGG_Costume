@@ -22,10 +22,25 @@
 #include <msp430.h>
 #include <legacymsp430.h>
 
-// constant defines
-#define DATA    BIT7
-#define CLOCK   BIT6
+// LED Left side
+#define DATA_L    BIT7
+#define CLOCK_L   BIT6
+#define NUMLEDS_L 64
+
+// LED Right side
+#define DATA_R    BIT7
+#define CLOCK_R   BIT6
+#define NUMLEDS_R 64
+
+// Synchronized
+#define DATA (DATA_R|DATA_L)
+#define CLOCK (CLOCK_R|CLOCK_L)
 #define NUMLEDS 64
+
+//Controller Inputs
+#define ADC_IN BIT0
+#define NUM_SWITCHES 1
+#define SWITCH_0 BIT1
 
 // wdt delay constants
 #define MCLK_FREQUENCY      1000000
@@ -35,7 +50,8 @@ const unsigned long WDT_FREQUENCY = MCLK_FREQUENCY / WDT_DIVIDER;
 volatile unsigned long wdtCounter = 0;
 
 // data arrays
-unsigned long pixels[NUMLEDS];
+unsigned long pixels_left[NUMLEDS_L];
+unsigned long pixels_right[NUMLEDS_R];
 
 //incrementers
 int p;
@@ -94,6 +110,8 @@ void main(void) {
   delayMillis(1000);
   while (1) { 
     demos();
+    //check switches
+    //update LEDs
   }
 
 }
