@@ -57,6 +57,17 @@ unsigned long pixels_right[NUMLEDS_R];
 int p;
 long i;
 
+//other state variables
+enum {
+  CHASE = 0,
+  RANDOM,
+  RAINBOW,
+  BLINK,
+  MODE_COUNT
+} led_mode;
+
+unsigned int analog_val; //for pot input on ADC pin
+
 // prototypes
 void init(void);
 void display(void);
@@ -67,6 +78,7 @@ unsigned long wheel(unsigned char wheelpos);
 
 // pattern functions
 void demos(void);
+void lbgg_chase(void);
 void randomchase(void);
 void copcar(void);
 void goJoe(unsigned long time); // larger time value is slower chase
@@ -75,6 +87,9 @@ void solidblink(unsigned long c);
 void colorwipe(unsigned long c);
 void rainbowcycle(void);
 void showrainbow(void);
+
+void check_switches(void);
+void update_leds(void);
 
 // random function and delay millis borrowed from NatureTM.com
 // random generator slightly modified to create 32bit value
@@ -109,14 +124,41 @@ void main(void) {
   colorwipe(clear); // clear led strip
   delayMillis(1000);
   while (1) { 
-    demos();
+    //demos();
     //check switches
+    check_switches();
     //update LEDs
+    update_leds();
   }
 
 }
 
 /* use functions */
+
+//check switches
+void check_switches(void) {
+
+}
+
+//update LEDs
+void update_leds (void) {
+
+  switch (led_mode){
+  case CHASE:
+    lbgg_chase();
+    break;
+  case RANDOM:
+    randomdance();
+    break;
+  case RAINBOW:
+    rainbowcycle();
+    break;
+  case BLINK:
+    solidblink(green);
+  default: break;
+  }
+
+}
 
 // random chase
 void randomchase(void) {
@@ -132,6 +174,32 @@ void randomchase(void) {
     setPixelS(m+1, clear);
     display();
     delayMillis(100);
+  }
+}
+
+//LBGG color chase
+void lbgg_chase(void) {
+  int m;
+
+  time = analog_val; //TODO: do some math here
+
+  //colorwipe(clear); do this in switch logic
+  
+  for ( m = 0; m < NUMLEDS; m++ ) {
+    setPixelS(m, green);
+    setPixelS(m - 2, white);
+    setPixelS(m - 4, green);
+    setPixelS(m - 6, clear);
+    display();
+    delayMillis(time);
+  }
+  for ( m = NUMLEDS; m >= 0; m-- ) {
+    setPixelS(m, clear);
+    setPixelS(m - 2, green);
+    setPixelS(m - 4, white);
+    setPixelS(m - 6, green);
+    display();
+    delayMillis(time);
   }
 }
 
@@ -201,6 +269,7 @@ void solidblink(unsigned long c) {
   colorwipe(c);
   delayMillis(500);
   colorwipe(clear);
+  delayMillis(500);
 }
 
 // animate fading rainbow cycle
