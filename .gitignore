@@ -1,0 +1,11 @@
+.ccsproject
+.cproject
+org.eclipse.cdt.codan.core.prefs
+org.eclipse.cdt.debug.core.prefs
+org.eclipse.core.resources.prefs
+LBGG_Costume.map
+LBGG_Costume.out
+Debug
+Release
+lnk_msp430g2553.cmd
+readme.txt
