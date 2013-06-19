@@ -20,7 +20,7 @@
 /*******************************************************************/
 
 #include <msp430.h>
-#include <legacymsp430.h>
+//#include <legacymsp430.h>
 
 // LED Left side
 #define DATA_L    BIT5
@@ -38,9 +38,17 @@
 #define NUMLEDS 20
 
 //Controller Inputs
-#define ADC_IN BIT0
-#define NUM_SWITCHES 1
-#define SWITCH_0 BIT1
+#define M_PHASEA BIT0
+#define M_PHASEB BIT1
+#define M_BOTH (M_PHASEA | M_PHASEB)
+#define S_PHASEA BIT5
+#define S_PHASEB BIT4
+#define S_BOTH (S_PHASEA | S_PHASEB)
+
+#define ON_SWITCH BIT3
+
+#define FWD 1
+#define BKW -1
 
 // wdt delay constants
 #define MCLK_FREQUENCY      1000000
@@ -52,6 +60,15 @@ volatile unsigned long wdtCounter = 0;
 // data arrays
 unsigned long pixels_left[NUMLEDS_L];
 unsigned long pixels_right[NUMLEDS_R];
+int speed = 0;
+#define SPEED_SLOW 100
+#define SPEED_INC 1
+
+// encoder data
+int m_encoder_state = 0;
+int m_direction_ctr = 0;
+int s_encoder_state = 0;
+int s_direction_ctr = 0;
 
 //incrementers
 int p;
@@ -88,6 +105,8 @@ void colorwipe(unsigned long c);
 void rainbowcycle(void);
 void showrainbow(void);
 
+void check_mode_encoder(void);
+void check_speed_encoder(void);
 void check_switches(void);
 void update_leds(void);
 
@@ -112,18 +131,18 @@ void main(void) {
   DCOCTL = CALDCO_1MHZ;
   BCSCTL1 = CALBC1_1MHZ;
   // wdt set as interval
-  WDTCTL = WDTPW + WDTTMSEL + WDTIS1;
+  //WDTCTL = WDTPW + WDTTMSEL + WDTIS1;
   // wdt interrupt
-  IE1 |= WDTIE;
+  //  IE1 |= WDTIE;
   // enable global interrupts using intrinsic
-  __enable_interrupt();
+  //__enable_interrupt();
   
   // initialize pins for SPI
   init();
   led_mode = CHASE;
   
   colorwipe(clear); // clear led strip
-  delayMillis(1000);
+  //delayMillis(1000);
   while (1) { 
     //demos();
     //check switches
@@ -139,6 +158,20 @@ void main(void) {
 //check switches
 void check_switches(void) {
 
+  while (P2IN & ON_SWITCH) colorwipe(clear); // on or off based on switch
+
+  check_mode_encoder();
+  led_mode += m_direction_ctr;
+  m_direction_ctr = 0;
+  while (led_mode >= MODE_COUNT) led_mode -= MODE_COUNT;
+  while (led_mode < 0) led_mode += MODE_COUNT;
+
+  check_speed_encoder();
+  speed += s_direction_ctr;
+  s_direction_ctr = 0;
+  while (speed > SPEED_SLOW) speed = SPEED_SLOW;
+  while (speed < 0) speed = 0;
+
 }
 
 //update LEDs
@@ -146,7 +179,8 @@ void update_leds (void) {
 
   switch (led_mode){
   case CHASE:
-    lbgg_chase();
+    //lbgg_chase();
+    copcar();
     break;
   case RANDOM:
     randomdance();
@@ -182,7 +216,7 @@ void randomchase(void) {
 void lbgg_chase(void) {
   int m;
 
-  time = analog_val; //TODO: do some math here
+  int time = analog_val; //TODO: do some math here
 
   //colorwipe(clear); do this in switch logic
   
@@ -314,12 +348,12 @@ void demos(void) {
 // run demos for display
     
   for (x = 0; x < 3; x++) {
-    copcar();
+    lbgg_chase();
   }
     
-  for (x = 0; x < 3; x++) {
+  /* for (x = 0; x < 3; x++) {
     goJoe(50);
-  }
+    }*/
 
   for (x = 0; x < 5; x++) {
     randomdance();
@@ -351,6 +385,11 @@ void writezeros(unsigned int n) {
 //initialization
 void init(void) {
   int i;
+
+  __disable_interrupt(); //because fuck that shit
+
+  WDTCTL = WDTPW | WDTHOLD;	// Stop watchdog timer
+
   P1DIR |= DATA + CLOCK; // set data and clock pins to output
   P1OUT &= ~DATA; // Data low
   P1OUT &= ~CLOCK;
@@ -358,28 +397,59 @@ void init(void) {
     pixels_left[i] = pixels_right[i] = 0x808080;
   }
   writezeros(3 * ((NUMLEDS + 63) / 64)); // latch to wake it up
+
+    //encoder
+    P2DIR = 0; //all input
+    P2REN = M_PHASEA | M_PHASEB | S_PHASEA | S_PHASEB | ON_SWITCH; //pull-up resistors
+
 }
 
 // send data to led strip; create patten with a 'use' function then send with display
-void display(void) {
+void display_left(void) {
   unsigned long data;
     
     // send all the pixels
-    for ( p=0; p < NUMLEDS ; p++ ) {
+    for ( p=0; p < NUMLEDS_L ; p++ ) {
       data = pixels_left[p];
       // 24 bits of data per pixel
       for ( i=0x800000; i>0 ; i>>=1 ) {
         if (data & i) {
-            P1OUT |= DATA;
+            P1OUT |= DATA_L;
         } else {
-            P1OUT &= ~DATA;
+            P1OUT &= ~DATA_L;
         }
-        P1OUT |= CLOCK;    // latch on clock rise
-        P1OUT &= ~CLOCK;
+        P1OUT |= CLOCK_L;    // latch on clock rise
+        P1OUT &= ~CLOCK_L;
       }
     }
-    writezeros(3 * ((NUMLEDS + 63) / 64)); // latch
+    writezeros(3 * ((NUMLEDS_L + 63) / 64)); // latch
     delayMillis(3);
+}
+
+void display_right(void) {
+  unsigned long data;
+    
+    // send all the pixels
+    for ( p=0; p < NUMLEDS_R ; p++ ) {
+      data = pixels_right[p];
+      // 24 bits of data per pixel
+      for ( i=0x800000; i>0 ; i>>=1 ) {
+        if (data & i) {
+            P1OUT |= DATA_R;
+        } else {
+            P1OUT &= ~DATA_R;
+        }
+        P1OUT |= CLOCK_R;    // latch on clock rise
+        P1OUT &= ~CLOCK_R;
+      }
+    }
+    writezeros(3 * ((NUMLEDS_R + 63) / 64)); // latch
+    delayMillis(3);
+}
+
+void display(void) {
+  display_left();
+  display_right();
 }
 
 // create 24bit color value
@@ -396,16 +466,16 @@ unsigned long colorHex(unsigned long hex) {
 
 // set pixel to specified color
 void setPixel(unsigned int n, unsigned char r, unsigned char g, unsigned char b) {
-  if ( n > NUMLEDS || n < 0 ) return;
+  if ( n > NUMLEDS ) return;
   
-  pixels_left[n] = color(r, g, b);
+  pixels_left[n] = pixels_right[n] = color(r, g, b);
 }
 
 //set pixel to color by function
 void setPixelS(unsigned int n, unsigned long c) {
-  if ( n > NUMLEDS || n < 0 ) return;
+  if ( n > NUMLEDS ) return;
   
-  pixels_left[n] = c;
+  pixels_left[n] = pixels_right[n] = c;
 }
 
 // rotate colorwheel for rainbows
@@ -439,11 +509,85 @@ unsigned long adcGenRand24(void) {
 
 // millisecond delay counter using WDT
 void delayMillis(unsigned long milliseconds) {
-  unsigned long wakeTime = wdtCounter + (milliseconds * WDT_FREQUENCY / 1000);
-  while(wdtCounter < wakeTime);
+
+  int ix;
+  for (ix = 0; ix < (milliseconds * speed * SPEED_INC); ++ix) {
+    //__NOP();
+    int dummy = m_direction_ctr * i;
+  }
+  
+  //return;
+  //unsigned long wakeTime = wdtCounter + (milliseconds * WDT_FREQUENCY / 1000);
+  //while(wdtCounter < wakeTime);
 }
 
 // wdt isr
-interrupt(WDT_VECTOR) watchdog_timer(void) {
+/*interrupt(WDT_VECTOR) watchdog_timer(void) {
   wdtCounter++;
+  }*/
+
+void check_mode_encoder(void) {
+  int m_new_state = 0;
+  //check input state
+  if (P2IN & M_PHASEA) m_new_state |= M_PHASEA;
+  if (P2IN & M_PHASEB) m_new_state |= M_PHASEB;
+
+  //compare against old state and update
+  switch(m_encoder_state)
+  {
+  case 0:
+    if (m_new_state == M_PHASEA) m_direction_ctr = FWD;
+    if (m_new_state == M_PHASEB) m_direction_ctr = BKW;
+    break;
+  case M_PHASEA:
+    if (m_new_state == M_BOTH) m_direction_ctr = FWD;
+    if (m_new_state == 0) m_direction_ctr = BKW;
+    break;
+  case M_PHASEB:
+    if (m_new_state == 0) m_direction_ctr = FWD;
+    if (m_new_state == M_BOTH) m_direction_ctr = BKW;
+    break;
+  case M_BOTH:
+    if (m_new_state == M_PHASEB) m_direction_ctr = FWD;
+    if (m_new_state == M_PHASEA) m_direction_ctr = BKW;
+    break;
+  default:
+    break;
+
+  }
+
+  m_encoder_state = m_new_state;
+}
+
+void check_speed_encoder(void) {
+  int s_new_state = 0;
+  //check input state
+  if (P2IN & S_PHASEA) s_new_state |= S_PHASEA;
+  if (P2IN & S_PHASEB) s_new_state |= S_PHASEB;
+
+  //compare against old state and update
+  switch(s_encoder_state)
+  {
+  case 0:
+    if (s_new_state == S_PHASEA) s_direction_ctr = FWD;
+    if (s_new_state == S_PHASEB) s_direction_ctr = BKW;
+    break;
+  case S_PHASEA:
+    if (s_new_state == S_BOTH) s_direction_ctr = FWD;
+    if (s_new_state == 0) s_direction_ctr = BKW;
+    break;
+  case S_PHASEB:
+    if (s_new_state == 0) s_direction_ctr = FWD;
+    if (s_new_state == S_BOTH) s_direction_ctr = BKW;
+    break;
+  case S_BOTH:
+    if (s_new_state == S_PHASEB) s_direction_ctr = FWD;
+    if (s_new_state == S_PHASEA) s_direction_ctr = BKW;
+    break;
+  default:
+    break;
+
+  }
+
+  s_encoder_state = s_new_state;
 }
