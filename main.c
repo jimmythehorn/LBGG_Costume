@@ -23,19 +23,19 @@
 #include <legacymsp430.h>
 
 // LED Left side
-#define DATA_L    BIT7
-#define CLOCK_L   BIT6
-#define NUMLEDS_L 64
+#define DATA_L    BIT5
+#define CLOCK_L   BIT4
+#define NUMLEDS_L 20
 
 // LED Right side
-#define DATA_R    BIT7
-#define CLOCK_R   BIT6
-#define NUMLEDS_R 64
+#define DATA_R    BIT6
+#define CLOCK_R   BIT7
+#define NUMLEDS_R 20
 
 // Synchronized
 #define DATA (DATA_R|DATA_L)
 #define CLOCK (CLOCK_R|CLOCK_L)
-#define NUMLEDS 64
+#define NUMLEDS 20
 
 //Controller Inputs
 #define ADC_IN BIT0
@@ -120,6 +120,7 @@ void main(void) {
   
   // initialize pins for SPI
   init();
+  led_mode = CHASE;
   
   colorwipe(clear); // clear led strip
   delayMillis(1000);
@@ -354,7 +355,7 @@ void init(void) {
   P1OUT &= ~DATA; // Data low
   P1OUT &= ~CLOCK;
   for(i=0; i<NUMLEDS; i++) {
-    pixels[i] = 0x808080;
+    pixels_left[i] = pixels_right[i] = 0x808080;
   }
   writezeros(3 * ((NUMLEDS + 63) / 64)); // latch to wake it up
 }
@@ -365,7 +366,7 @@ void display(void) {
     
     // send all the pixels
     for ( p=0; p < NUMLEDS ; p++ ) {
-      data = pixels[p];
+      data = pixels_left[p];
       // 24 bits of data per pixel
       for ( i=0x800000; i>0 ; i>>=1 ) {
         if (data & i) {
@@ -397,14 +398,14 @@ unsigned long colorHex(unsigned long hex) {
 void setPixel(unsigned int n, unsigned char r, unsigned char g, unsigned char b) {
   if ( n > NUMLEDS || n < 0 ) return;
   
-  pixels[n] = color(r, g, b);
+  pixels_left[n] = color(r, g, b);
 }
 
 //set pixel to color by function
 void setPixelS(unsigned int n, unsigned long c) {
   if ( n > NUMLEDS || n < 0 ) return;
   
-  pixels[n] = c;
+  pixels_left[n] = c;
 }
 
 // rotate colorwheel for rainbows
