@@ -77,6 +77,7 @@ long i;
 //other state variables
 enum {
   CHASE = 0,
+  COPCAR,
   RANDOM,
   RAINBOW,
   BLINK,
@@ -158,7 +159,8 @@ void main(void) {
 //check switches
 void check_switches(void) {
 
-  while (P2IN & ON_SWITCH) colorwipe(clear); // on or off based on switch
+  while (P2IN & ON_SWITCH) 
+    colorwipe(clear); // on or off based on switch
 
   check_mode_encoder();
   led_mode += m_direction_ctr;
@@ -179,7 +181,9 @@ void update_leds (void) {
 
   switch (led_mode){
   case CHASE:
-    //lbgg_chase();
+    lbgg_chase();
+    break;
+  case COPCAR:
     copcar();
     break;
   case RANDOM:
@@ -247,19 +251,19 @@ void copcar(void) {
 
   for ( m = 0; m < NUMLEDS; m++ ) {
     if ( m <= middle ) {
-      setPixelS(m, red);
+      setPixelS(m, green);
       setPixelS(m - 2, clear);
 
-      setPixelS(NUMLEDS - m, blue);
+      setPixelS(NUMLEDS - m, white);
       setPixelS(NUMLEDS - m + 2, clear);
     }
     display();
 
     if  ( m >= middle ) {
-      setPixelS(m, blue);
+      setPixelS(m, white);
       setPixelS(m - 2, clear);
   
-      setPixelS(NUMLEDS - m, red);
+      setPixelS(NUMLEDS - m, green);
       setPixelS(NUMLEDS - m + 2, clear);
     }
     display();
@@ -400,8 +404,8 @@ void init(void) {
 
     //encoder
     P2DIR = 0; //all input
-    P2REN = M_PHASEA | M_PHASEB | S_PHASEA | S_PHASEB | ON_SWITCH; //pull-up resistors
-
+    //P2REN = M_PHASEA | M_PHASEB | S_PHASEA | S_PHASEB | ON_SWITCH; //pull-up resistors
+    P2REN = 0xFF; //all pull high
 }
 
 // send data to led strip; create patten with a 'use' function then send with display
